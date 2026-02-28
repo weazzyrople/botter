@@ -455,10 +455,12 @@ async def creators_callback(callback: types.CallbackQuery):
     await callback.message.edit_caption(
         caption="👥 <b>Создатели бота:</b>\n\n"
                 "• Владелец, главный кодер и дизайнер:\n"
-                "@твой_username\n\n"
+                "@hyper3os"
+                 Главный кодер и дизайнер:\n"
+                 "@usmonxadjaevv"
                 "🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
                 "идею? Напишите нашей оперативной поддержке:</b>\n"
-                "@phonegetsupport",
+                "@hyper3os",
         reply_markup=keyboard
     )
     await callback.answer()
