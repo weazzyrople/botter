@@ -94,7 +94,7 @@ class BotStates(StatesGroup):
     admin_broadcast = State()
 
 
-# ==================== БАЗА ДАННЫХ ====================
+
 
 def init_db():
     conn = sqlite3.connect('phones_bot.db')
@@ -117,7 +117,7 @@ def init_db():
         )
     ''')
     
-    # Телефоны пользователей
+   
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_phones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +130,7 @@ def init_db():
         )
     ''')
     
-    # Достижения
+  
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -228,7 +228,7 @@ def calculate_rarity():
     return 0
 
 
-# ==================== КЛАВИАТУРЫ ====================
+
 
 def main_keyboard():
     keyboard = [
@@ -242,7 +242,7 @@ def main_keyboard():
 
 def shop_keyboard():
     buttons = []
-    for r in range(6):  # До Арканы
+    for r in range(6):  
         buttons.append([InlineKeyboardButton(
             text=f"{RARITIES[r]['name']}",
             callback_data=f"shop_{r}"
@@ -303,8 +303,8 @@ def shop_phones_keyboard(rarity: int, page: int = 0):
             text=f"{phone_name} - {price:,} ТОчек",
             callback_data=f"buy_{rarity}_{phone_name}"
         )])
+
     
-    # Навигация
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"shop_{rarity}_{page-1}"))
@@ -325,7 +325,7 @@ def buy_confirm_keyboard(rarity: int, phone_name: str):
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-# ==================== ОБРАБОТЧИКИ ====================
+
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -349,14 +349,14 @@ async def cmd_start(message: types.Message):
     
     bot_info = await bot.get_me()
     
-    # Кнопки
+ 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
         [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
     ])
     
     await message.answer_photo(
-        photo="https://i.imgur.com/XKZqYwH.jpg",  # Замени на свою картинку с аниме
+        photo="https://i.imgur.com/XKZqYwH.jpg", 
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
                 f"🎴 Наш бот представляет из себя инструмент для "
                 f"коллекционирования различных моделей телефонов: от старого "
@@ -370,16 +370,54 @@ async def cmd_start(message: types.Message):
 @dp.callback_query(F.data == "help_menu")
 async def help_menu_callback(callback: types.CallbackQuery):
     """Меню помощи"""
+    
+    conn = sqlite3.connect('phones_bot.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM users')
+    total_users = cursor.fetchone()[0]
+    cursor.execute('SELECT COUNT(*) FROM user_phones')
+    total_phones = cursor.fetchone()[0]
+    conn.close()
+    
+  
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Список команд", callback_data="commands_list")],
-        [InlineKeyboardButton(text="ℹ️ О боте", callback_data="about_bot")],
-        [InlineKeyboardButton(text="👥 Создатели", callback_data="creators")],
-        [InlineKeyboardButton(text="🆘 Поддержка", url="https://t.me/phonegetsupport")],
         [InlineKeyboardButton(text="🔙 Вернуться назад", callback_data="back_start")]
     ])
     
     await callback.message.edit_caption(
-        caption="📚 <b>Меню помощи</b>\n\nВыберите раздел:",
+        caption=f"ℹ️ <b>Наш бот представляет из себя инструмент для "
+                f"коллекционирования различных моделей телефонов: от старого "
+                f"хлама до новых ультра флагманов.</b>\n\n"
+                f"👥 <b>Создатели бота:@usmonxadjaevv</b>\n\n"
+                f"• Владелец:\n"
+                f"@hyper3os\n\n"
+                f"• Дизайнеры:\n"
+                f"@usmonxadjaevv"
+                f"🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
+                f"идею? Напишите нашей оперативной поддержке:</b>\n"
+                f"@hyper3os",
+                f"<b>📱 СПИСОК КОМАНД:</b>\n\n"
+                f'• "ТКарточка" - позволяет забрать карточку с телефоном, доступную раз в определённый промежуток времени.\n'
+                f'• "ТАкк" - выводит подробную статистику человека, написавшего команду.\n'
+                f'• "Мои телефоны" - открывает список всех устройств в вашем владении.\n'
+                f'• "Магазин телефонов" - магазин всех телефонов вплоть до Арканы.\n'
+                f'• "Магазин улучшений" - магазин прокачки игровых условностей.\n'
+                f'• "Апгрейд" - позволяет улучшить ваш телефон до следующей редкости с фиксированным шансом.\n'
+                f'• "Ежедневная награда" - позволяет забрать бесплатную награду, доступную каждые 24 часа.\n'
+                f'• "Таблица лидеров" - показывает топ-10 игроков по разным параметрам.\n'
+                f'• "/pay @юзернейм" - команда позволяет перевести любое количество валюты другому игроку.\n'
+                f'• "/event" - отображает текущий розыгрыш.\n'
+                f'• "/sellall" - открывает меню продажи всех телефонов одной редкости.\n'
+                f'• "/trade @юзернейм" - позволяет начать обмен с другим игроком.\n'
+                f'• "/avito" или "авито" - открывает вторичный рынок.\n'
+                f'• "/avito @юзернейм" - открывает объявления игрока, юзернейм которого вы указали.\n'
+                f'• "/tfarm" или "тмайнинг" - открывает вашу майнинг ферму.\n'
+                f'• "/achievements" или "достижения" - открывает список достижений.\n'
+                f'• "/donate" или "донат" - открывает каталог доступных к покупке статусов.\n'
+                f'• "/roulette" - выводит донатную рулетку.\n'
+                f'• "/tconfig" - открывает конфигурацию различных параметров.\n'
+                f'• "/tinfo" или "тинфо" - показывает техническую информацию сервера.\n'
+                f'• "/ping" или "пинг" - пингануть бота.',
         reply_markup=keyboard
     )
     await callback.answer()
@@ -460,7 +498,7 @@ async def creators_callback(callback: types.CallbackQuery):
                 "@твой_username\n\n"
                 "🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
                 "идею? Напишите нашей оперативной поддержке:</b>\n"
-                "@phonegetsupport",
+                "@твой_support_username",
         reply_markup=keyboard
     )
     await callback.answer()
