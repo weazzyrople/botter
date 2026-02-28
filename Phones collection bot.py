@@ -370,7 +370,7 @@ async def cmd_start(message: types.Message):
     ])
     
     await message.answer_photo(
-        photo=https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg", 
+        photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
                 f"🎴 Наш бот представляет из себя инструмент для "
                 f"коллекционирования различных моделей телефонов: от старого "
