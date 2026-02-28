@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ТОКЕНЫ
-BOT_TOKEN = os.getenv('PHONES_BOT_TOKEN', '')
+BOT_TOKEN = os.getenv('PHONES_BOT_TOKEN', '')  # Создай нового бота через @BotFather
 ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x]
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -334,18 +334,32 @@ async def cmd_start(message: types.Message):
     first_name = message.from_user.first_name or ""
     create_user(user_id, username, first_name)
     
-    # Кнопка помощи
+    # Устанавливаем команды бота в меню
+    commands = [
+        types.BotCommand(command="start", description="Приветственное сообщение"),
+        types.BotCommand(command="tcard", description="Получить карточку"),
+        types.BotCommand(command="pay", description="Передать ТОчки другому игроку"),
+        types.BotCommand(command="paycoin", description="Передать T-Coins другому игроку"),
+        types.BotCommand(command="trade", description="Начать обмен"),
+        types.BotCommand(command="sellall", description="Продать все телефоны"),
+        types.BotCommand(command="avito", description="Вторичный рынок"),
+        types.BotCommand(command="tfarm", description="Майнинг ферма"),
+    ]
+    await bot.set_my_commands(commands)
+    
+    # Кнопки
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")]
+        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
+        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{(await bot.get_me()).username}?startgroup=true")]
     ])
     
     await message.answer_photo(
         photo="https://i.imgur.com/XKZqYwH.jpg",  # Замени на свою картинку с аниме
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
-                f"🎴 Наш бот предлагает вам погрузиться в мир смартфонов и "
-                f"доказать другим, что вы лучше понимаете новые технологии!\n\n"
+                f"🎴 Наш бот представляет из себя инструмент для "
+                f"коллекционирования различных моделей телефонов: от старого "
+                f"хлама до новых ультра флагманов.\n\n"
                 f"📱 Чтобы открыть вашу первую карточку напишите \"ТКарточка\".\n\n"
-                f"Наш телеграм канал: @phonegethelper\n\n"
                 f"🎯 Используйте одну из кнопок ниже для взаимодействия с функциями:",
         reply_markup=keyboard
     )
@@ -425,11 +439,7 @@ async def about_bot_callback(callback: types.CallbackQuery):
                 f"хлама до новых ультра флагманов.</b>\n\n"
                 f"📊 <b>Статистика:</b>\n"
                 f"👥 Пользователей: {total_users:,}\n"
-                f"📱 Телефонов выдано: {total_phones:,}\n\n"
-                f"🌐 <b>Команды бота:</b>\n"
-                f"t.me/PhoneGetHelper\n\n"
-                f"(Веб-версия)\n"
-                f"teletype.in/@mynss3/radIGdETdBP",
+                f"📱 Телефонов выдано: {total_phones:,}",
         reply_markup=keyboard
     )
     await callback.answer()
@@ -445,9 +455,7 @@ async def creators_callback(callback: types.CallbackQuery):
     await callback.message.edit_caption(
         caption="👥 <b>Создатели бота:</b>\n\n"
                 "• Владелец, главный кодер и дизайнер:\n"
-                "@mynss3\n\n"
-                "• Дизайнеры:\n"
-                "@eXploit3x; @Reallypozzi; @Fuga_bot4242\n\n"
+                "@твой_username\n\n"
                 "🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
                 "идею? Напишите нашей оперативной поддержке:</b>\n"
                 "@phonegetsupport",
@@ -462,15 +470,16 @@ async def back_start_callback(callback: types.CallbackQuery):
     username = callback.from_user.username or ""
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")]
+        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
+        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{(await bot.get_me()).username}?startgroup=true")]
     ])
     
     await callback.message.edit_caption(
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
-                f"🎴 Наш бот предлагает вам погрузиться в мир смартфонов и "
-                f"доказать другим, что вы лучше понимаете новые технологии!\n\n"
+                f"🎴 Наш бот представляет из себя инструмент для "
+                f"коллекционирования различных моделей телефонов: от старого "
+                f"хлама до новых ультра флагманов.\n\n"
                 f"📱 Чтобы открыть вашу первую карточку напишите \"ТКарточка\".\n\n"
-                f"Наш телеграм канал: @phonegethelper\n\n"
                 f"🎯 Используйте одну из кнопок ниже для взаимодействия с функциями:",
         reply_markup=keyboard
     )
@@ -1398,10 +1407,9 @@ async def back_myphones(callback: types.CallbackQuery):
     await callback.answer()
 
 
-
+# ==================== ЗАПУСК ====================
 
 async def main():
-  
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         logger.info("✅ Webhook удалён!")
