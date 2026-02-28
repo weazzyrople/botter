@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ТОКЕНЫ
-BOT_TOKEN = os.getenv('8011914004:AAEhXq5g2Mo2LCM4sZ5RY8Rj_3YCjPT8TOM') 
+BOT_TOKEN = os.getenv('PHONES_BOT_TOKEN', '')
 ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x]
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
