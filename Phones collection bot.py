@@ -347,10 +347,12 @@ async def cmd_start(message: types.Message):
     ]
     await bot.set_my_commands(commands)
     
+    bot_info = await bot.get_me()
+    
     # Кнопки
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
-        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{(await bot.get_me()).username}?startgroup=true")]
+        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
     ])
     
     await message.answer_photo(
@@ -455,12 +457,10 @@ async def creators_callback(callback: types.CallbackQuery):
     await callback.message.edit_caption(
         caption="👥 <b>Создатели бота:</b>\n\n"
                 "• Владелец, главный кодер и дизайнер:\n"
-                "@hyper3os"
-                 Главный кодер и дизайнер:\n"
-                 "@usmonxadjaevv"
+                "@твой_username\n\n"
                 "🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
                 "идею? Напишите нашей оперативной поддержке:</b>\n"
-                "@hyper3os",
+                "@phonegetsupport",
         reply_markup=keyboard
     )
     await callback.answer()
@@ -470,10 +470,11 @@ async def creators_callback(callback: types.CallbackQuery):
 async def back_start_callback(callback: types.CallbackQuery):
     """Возврат к приветствию"""
     username = callback.from_user.username or ""
+    bot_info = await bot.get_me()
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
-        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{(await bot.get_me()).username}?startgroup=true")]
+        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
     ])
     
     await callback.message.edit_caption(
@@ -1412,15 +1413,10 @@ async def back_myphones(callback: types.CallbackQuery):
 # ==================== ЗАПУСК ====================
 
 async def main():
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        logger.info("✅ Webhook удалён!")
-    except Exception as e:
-        logger.error(f"Ошибка удаления webhook: {e}")
-    
     init_db()
     logger.info("🚀 Phones Collection Bot запущен!")
     await dp.start_polling(bot)
+
 
 if __name__ == '__main__':
     import sys
