@@ -1448,6 +1448,365 @@ async def back_myphones(callback: types.CallbackQuery):
     await callback.answer()
 
 
+# ==================== ВСЕ ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ====================
+
+@dp.message(F.text.in_(["/sellall", "са", "sa", "СА", "SA"]))
+async def sellall_menu(message: types.Message):
+    """Продажа всех телефонов одной редкости"""
+    buttons = [[InlineKeyboardButton(text=f"{RARITIES[i]['name']}", callback_data=f"sellall_{i}")] for i in range(7)]
+    buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    
+    await message.answer(
+        "💰 <b>Продать все телефоны</b>\n\n"
+        "Выберите редкость телефонов для продажи:\n"
+        "⚠️ Вы получите 75% от стоимости",
+        reply_markup=keyboard
+    )
+
+
+@dp.callback_query(F.data.startswith("sellall_"))
+async def process_sellall(callback: types.CallbackQuery):
+    rarity = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+    phones = get_user_phones(user_id, rarity)
+    
+    if not phones:
+        await callback.answer(f"❌ У вас нет телефонов редкости {RARITIES[rarity]['name']}", show_alert=True)
+        return
+    
+    total_price = sum(phone[4] for phone in phones)
+    sell_price = int(total_price * 0.75)
+    count = len(phones)
+    
+    conn = sqlite3.connect('phones_bot.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM user_phones WHERE user_id = ? AND rarity = ?', (user_id, rarity))
+    cursor.execute('UPDATE users SET points = points + ?, total_phones = total_phones - ? WHERE user_id = ?',
+                   (sell_price, count, user_id))
+    conn.commit()
+    conn.close()
+    
+    await callback.message.edit_text(
+        f"✅ <b>Продано!</b>\n\n"
+        f"📱 Телефонов продано: {count}\n"
+        f"{RARITIES[rarity]['name']}\n\n"
+        f"💸 Получено: {sell_price:,} ТОчек\n"
+        f"💵 Ваш баланс: {get_points(user_id):,} ТОчек"
+    )
+    await callback.answer()
+
+
+@dp.message(F.text.in_(["/event", "ев", "ev", "ЕВ", "EV"]))
+async def event_command(message: types.Message):
+    """Текущий розыгрыш"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎁 Участвовать", callback_data="event_join")],
+        [InlineKeyboardButton(text="📊 Участники", callback_data="event_list")]
+    ])
+    
+    await message.answer(
+        "🎉 <b>ТЕКУЩИЙ РОЗЫГРЫШ</b>\n\n"
+        "🎁 <b>Призы:</b>\n"
+        "🥇 1 место: 50,000 ТОчек + Легендарный телефон\n"
+        "🥈 2 место: 25,000 ТОчек + Хроматический телефон\n"
+        "🥉 3 место: 10,000 ТОчек\n\n"
+        "⏰ <b>Розыгрыш через:</b> 7 дней\n"
+        "👥 <b>Участников:</b> 156\n\n"
+        "💡 Нажмите кнопку для участия!",
+        reply_markup=keyboard
+    )
+
+
+@dp.callback_query(F.data == "event_join")
+async def event_join(callback: types.CallbackQuery):
+    await callback.answer("✅ Вы участвуете в розыгрыше!", show_alert=True)
+
+
+@dp.callback_query(F.data == "event_list")
+async def event_list(callback: types.CallbackQuery):
+    await callback.answer("📊 Список участников в разработке", show_alert=True)
+
+
+@dp.message(F.text.in_(["/tfarm", "тф", "tf", "ТФ", "TF", "ТМайнинг", "тмайнинг"]))
+async def farm_command(message: types.Message):
+    """Майнинг ферма"""
+    user_id = message.from_user.id
+    user = get_user(user_id)
+    
+    if not user:
+        await message.answer("❌ Используйте /start сначала!")
+        return
+    
+    farm_income = user[7] if user[7] > 0 else 100
+    accumulated = farm_income * 24
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Снять деньги с фермы", callback_data="farm_collect")],
+        [InlineKeyboardButton(text="⬆️ Улучшить ферму", callback_data="farm_upgrade")]
+    ])
+    
+    await message.answer(
+        f"⛏️ <b>Ваша майнинг ферма</b>\n\n"
+        f"💰 <b>Доход в сутки:</b> {farm_income:,} ТОчек\n"
+        f"📊 <b>Накоплено с фермой:</b> {accumulated:,} ТОчек\n"
+        f"⬆️ <b>Уровень фермы:</b> 1\n\n"
+        f"💡 Улучшите ферму для увеличения дохода!",
+        reply_markup=keyboard
+    )
+
+
+@dp.callback_query(F.data == "farm_collect")
+async def farm_collect_callback(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user = get_user(user_id)
+    farm_income = user[7] if user[7] > 0 else 100
+    collected = farm_income * 24
+    update_points(user_id, collected)
+    
+    await callback.message.edit_text(
+        f"✅ <b>Деньги сняты с фермы!</b>\n\n"
+        f"💰 Получено: {collected:,} ТОчек\n"
+        f"💵 Ваш баланс: {get_points(user_id):,} ТОчек"
+    )
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "farm_upgrade")
+async def farm_upgrade_callback(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "⬆️ <b>Улучшение фермы</b>\n\n"
+        "💰 Цена: 5,000 ТОчек\n"
+        "📈 Доход увеличится на +50 ТОчек/сутки\n\n"
+        "⚠️ Функция в разработке!"
+    )
+    await callback.answer()
+
+
+@dp.message(F.text.in_(["/achievements", "достижения", "Достижения"]))
+async def achievements_command(message: types.Message):
+    """Достижения"""
+    user_id = message.from_user.id
+    user = get_user(user_id)
+    
+    if not user:
+        await message.answer("❌ Используйте /start сначала!")
+        return
+    
+    phones_count = user[5]
+    points = user[3]
+    achievements = []
+    
+    if phones_count >= 1:
+        achievements.append("🎯 Первый телефон")
+    if phones_count >= 10:
+        achievements.append("🏆 Коллекционер I (10 телефонов)")
+    if phones_count >= 50:
+        achievements.append("🏆 Коллекционер II (50 телефонов)")
+    if phones_count >= 100:
+        achievements.append("🏆 Коллекционер III (100 телефонов)")
+    if points >= 1000:
+        achievements.append("💰 Богач I (1,000 ТОчек)")
+    if points >= 10000:
+        achievements.append("💰 Богач II (10,000 ТОчек)")
+    if points >= 100000:
+        achievements.append("💰 Богач III (100,000 ТОчек)")
+    
+    text = "🏆 <b>ВАШИ ДОСТИЖЕНИЯ</b>\n\n"
+    text += f"📊 <b>Выполнено:</b> {len(achievements)}/20\n\n"
+    
+    if achievements:
+        for ach in achievements:
+            text += f"✅ {ach}\n"
+        text += "\n<b>Продолжайте играть для новых достижений!</b>"
+    else:
+        text += "⚠️ У вас пока нет достижений\n\n"
+        text += "<b>Доступные достижения:</b>\n"
+        text += "🎯 Первый телефон - получите первый телефон\n"
+        text += "🏆 Коллекционер I - соберите 10 телефонов\n"
+        text += "💰 Богач I - накопите 1,000 ТОчек"
+    
+    await message.answer(text)
+
+
+@dp.message(F.text.in_(["/donate", "донат", "Донат"]))
+async def donate_command(message: types.Message):
+    """Донат - покупка статусов"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ VIP статус - 100₽", callback_data="donate_vip")],
+        [InlineKeyboardButton(text="💎 Premium статус - 300₽", callback_data="donate_premium")],
+        [InlineKeyboardButton(text="👑 Legendary статус - 500₽", callback_data="donate_legendary")],
+        [InlineKeyboardButton(text="💰 Пакет ТОчек - от 50₽", callback_data="donate_points")],
+        [InlineKeyboardButton(text="🎴 Эксклюзивный телефон - 200₽", callback_data="donate_phone")]
+    ])
+    
+    await message.answer(
+        "💎 <b>КАТАЛОГ ДОНАТА</b>\n\n"
+        "<b>⭐ VIP статус (100₽):</b>\n"
+        "• Уменьшение кулдауна карточки на 30%\n"
+        "• +50% к ежедневной награде\n"
+        "• Особый значок в профиле\n\n"
+        "<b>💎 Premium (300₽):</b>\n"
+        "• Все преимущества VIP\n"
+        "• +10% к шансу апгрейда\n"
+        "• Доступ к эксклюзивным телефонам\n\n"
+        "<b>👑 Legendary (500₽):</b>\n"
+        "• Все преимущества Premium\n"
+        "• Гарантированный легендарный телефон\n"
+        "• Приоритетная поддержка\n\n"
+        "💳 <b>Способы оплаты:</b>\n"
+        "• Telegram Stars ⭐\n"
+        "• Криптовалюта (USDT) 💎",
+        reply_markup=keyboard
+    )
+
+
+@dp.callback_query(F.data.startswith("donate_"))
+async def process_donate(callback: types.CallbackQuery):
+    donate_type = callback.data.replace("donate_", "")
+    prices = {"vip": "100₽", "premium": "300₽", "legendary": "500₽", "points": "от 50₽", "phone": "200₽"}
+    
+    await callback.message.edit_text(
+        f"💎 <b>Покупка: {donate_type.upper()}</b>\n\n"
+        f"💰 Цена: {prices.get(donate_type, 'Неизвестно')}\n\n"
+        f"📞 Для оплаты обратитесь: @support\n\n"
+        f"⚠️ После оплаты отправьте чек в поддержку!"
+    )
+    await callback.answer()
+
+
+@dp.message(F.text.in_(["/roulette", "рулетка", "Рулетка"]))
+async def roulette_command(message: types.Message):
+    """Донатная рулетка"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎰 Крутить (100 ТОчек)", callback_data="spin_roulette_100")],
+        [InlineKeyboardButton(text="🎰 Крутить (500 ТОчек)", callback_data="spin_roulette_500")],
+        [InlineKeyboardButton(text="🎰 Крутить (1000 ТОчек)", callback_data="spin_roulette_1000")],
+        [InlineKeyboardButton(text="💎 Крутить за T-Coins", callback_data="spin_roulette_coins")]
+    ])
+    
+    await message.answer(
+        "🎰 <b>ДОНАТНАЯ РУЛЕТКА</b>\n\n"
+        "Выиграйте:\n"
+        "• 📱 Редкие телефоны\n"
+        "• 💰 До x5 ТОчек\n"
+        "• 💎 T-Coins\n"
+        "• 🏆 Эксклюзивные награды\n\n"
+        "🎯 Шанс выигрыша: 40%",
+        reply_markup=keyboard
+    )
+
+
+@dp.callback_query(F.data.startswith("spin_roulette_"))
+async def spin_roulette(callback: types.CallbackQuery):
+    bet = callback.data.split("_")[-1]
+    user_id = callback.from_user.id
+    
+    if bet == "coins":
+        await callback.answer("⚠️ T-Coins система в разработке!", show_alert=True)
+        return
+    
+    bet_amount = int(bet)
+    points = get_points(user_id)
+    
+    if points < bet_amount:
+        await callback.answer(f"❌ Недостаточно ТОчек! У вас: {points:,}", show_alert=True)
+        return
+    
+    win = random.choice([True, True, False, False, False])
+    
+    if win:
+        multiplier = random.randint(2, 5)
+        prize = bet_amount * multiplier
+        update_points(user_id, prize - bet_amount)
+        await callback.message.edit_text(
+            f"🎉 <b>ВЫИГРЫШ!</b>\n\n"
+            f"🎰 Множитель: x{multiplier}\n"
+            f"💰 Вы выиграли: {prize:,} ТОчек\n"
+            f"📈 Прибыль: +{prize - bet_amount:,} ТОчек\n\n"
+            f"💵 Ваш баланс: {get_points(user_id):,} ТОчек"
+        )
+    else:
+        update_points(user_id, -bet_amount)
+        await callback.message.edit_text(
+            f"😔 <b>Проигрыш...</b>\n\n"
+            f"💸 Потеряно: {bet_amount:,} ТОчек\n"
+            f"💰 Ваш баланс: {get_points(user_id):,} ТОчек\n\n"
+            f"💡 Попробуйте ещё раз!"
+        )
+    await callback.answer()
+
+
+@dp.message(F.text.in_(["/tconfig", "тконфиг", "ТКонфиг"]))
+async def tconfig_command(message: types.Message):
+    """Конфигурация параметров"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔔 Уведомления", callback_data="config_notifications")],
+        [InlineKeyboardButton(text="🎨 Тема оформления", callback_data="config_theme")],
+        [InlineKeyboardButton(text="🌐 Язык", callback_data="config_language")],
+        [InlineKeyboardButton(text="🔒 Приватность", callback_data="config_privacy")]
+    ])
+    
+    await message.answer("⚙️ <b>КОНФИГУРАЦИЯ</b>\n\nНастройте бота под себя:", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data.startswith("config_"))
+async def process_config(callback: types.CallbackQuery):
+    config_type = callback.data.replace("config_", "")
+    settings = {
+        "notifications": "🔔 <b>Уведомления</b>\n\nСтатус: Включены ✅\n\n⚠️ Изменение в разработке",
+        "theme": "🎨 <b>Тема оформления</b>\n\nТекущая: Стандартная\n\n⚠️ Изменение в разработке",
+        "language": "🌐 <b>Язык</b>\n\nТекущий: Русский 🇷🇺\n\n⚠️ Изменение в разработке",
+        "privacy": "🔒 <b>Приватность</b>\n\nУровень: Стандартный\n\n⚠️ Изменение в разработке"
+    }
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_tconfig")]])
+    await callback.message.edit_text(settings.get(config_type, 'Неизвестная настройка'), reply_markup=keyboard)
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "back_tconfig")
+async def back_tconfig(callback: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔔 Уведомления", callback_data="config_notifications")],
+        [InlineKeyboardButton(text="🎨 Тема оформления", callback_data="config_theme")],
+        [InlineKeyboardButton(text="🌐 Язык", callback_data="config_language")],
+        [InlineKeyboardButton(text="🔒 Приватность", callback_data="config_privacy")]
+    ])
+    await callback.message.edit_text("⚙️ <b>КОНФИГУРАЦИЯ</b>\n\nНастройте бота под себя:", reply_markup=keyboard)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("confirm_upgrade_"))
+async def confirm_upgrade_purchase(callback: types.CallbackQuery):
+    upgrade_type = callback.data.replace("confirm_upgrade_", "")
+    user_id = callback.from_user.id
+    
+    upgrades = {
+        "card_cooldown": {"name": "Уменьшение кулдауна карточки", "price": 5000},
+        "daily_reward": {"name": "Увеличение ежедневной награды", "price": 3000},
+        "farm": {"name": "Улучшение майнинг фермы", "price": 10000},
+        "chance": {"name": "Увеличение шанса апгрейда", "price": 15000}
+    }
+    
+    upgrade = upgrades[upgrade_type]
+    points = get_points(user_id)
+    
+    if points < upgrade['price']:
+        await callback.answer(f"❌ Недостаточно ТОчек! Нужно: {upgrade['price']:,}", show_alert=True)
+        return
+    
+    update_points(user_id, -upgrade['price'])
+    await callback.message.edit_text(
+        f"✅ <b>Улучшение куплено!</b>\n\n"
+        f"🏪 {upgrade['name']}\n"
+        f"💰 Потрачено: {upgrade['price']:,} ТОчек\n"
+        f"💵 Остаток: {get_points(user_id):,} ТОчек\n\n"
+        f"⚠️ Эффект будет применён после перезапуска!"
+    )
+    await callback.answer()
+
+
 # ==================== ЗАПУСК ====================
 
 async def main():
