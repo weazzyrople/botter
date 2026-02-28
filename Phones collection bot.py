@@ -1401,14 +1401,16 @@ async def back_myphones(callback: types.CallbackQuery):
 
 
 async def main():
+  
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("✅ Webhook удалён!")
+    except Exception as e:
+        logger.error(f"Ошибка удаления webhook: {e}")
+    
     init_db()
-    
-   
-    await bot.delete_webhook(drop_pending_updates=True)
-    
     logger.info("🚀 Phones Collection Bot запущен!")
-    await dp.start_polling(bot))
-
+    await dp.start_polling(bot)
 
 if __name__ == '__main__':
     import sys
