@@ -568,7 +568,8 @@ async def back_start_callback(callback: types.CallbackQuery):
     ])
     
     await callback.message.delete()
-    await callback.message.answer_photo(
+    await callback.bot.send_photo(  # ← ИСПРАВЛЕНО!
+        chat_id=callback.message.chat.id,
         photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
                 f"🎴 Наш бот представляет из себя инструмент для "
