@@ -392,7 +392,6 @@ async def help_menu_callback(callback: types.CallbackQuery):
     await callback.message.delete()
     await callback.bot.send_photo(
         chat_id=callback.message.chat.id,
-        photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
         caption=f"ℹ️ <b>Наш бот представляет из себя инструмент для "
                 f"коллекционирования различных моделей телефонов: от старого "
                 f"хлама до новых ультра флагманов.</b>\n\n"
