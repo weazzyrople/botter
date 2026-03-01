@@ -22,14 +22,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ТОКЕНЫ
-BOT_TOKEN = os.getenv('PHONES_BOT_TOKEN', '')  # Создай нового бота через @BotFather
+BOT_TOKEN = os.getenv('PHONES_BOT_TOKEN', '')
 ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x]
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# РЕДКОСТИ (как в оригинале)
 RARITIES = {
     0: {'name': '📱 Шифротребность', 'color': '⬜️', 'chance': 40.0, 'upgrade_chance': 50.0},
     1: {'name': '📱 Необычный', 'color': '🟦', 'chance': 30.0, 'upgrade_chance': 40.0},
@@ -41,7 +40,6 @@ RARITIES = {
     7: {'name': '🌟 Легенда', 'color': '⬛️', 'chance': 0.01, 'upgrade_chance': 0.0},
 }
 
-# БАЗА ТЕЛЕФОНОВ (из phonesDB.json)
 PHONES_DB = {
     0: {
         "Apple iPhone 3G": 800, "Apple iPhone 4": 900, "Apple iPhone 5c": 1200,
@@ -94,13 +92,9 @@ class BotStates(StatesGroup):
     admin_broadcast = State()
 
 
-
-
 def init_db():
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
-    
-    # Пользователи
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -116,8 +110,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
-   
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_phones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,8 +121,6 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
     ''')
-    
-  
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +130,6 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
     ''')
-    
     conn.commit()
     conn.close()
 
@@ -182,8 +171,10 @@ def add_phone(user_id: int, phone_name: str, rarity: int, price: int):
     cursor.execute('''INSERT INTO user_phones (user_id, phone_name, rarity, price)
                       VALUES (?, ?, ?, ?)''', (user_id, phone_name, rarity, price))
     cursor.execute('UPDATE users SET total_phones = total_phones + 1 WHERE user_id = ?', (user_id,))
+    phone_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    return phone_id
 
 
 def get_user_phones(user_id: int, rarity: int = None):
@@ -218,7 +209,6 @@ def get_random_phone(rarity: int):
 
 
 def calculate_rarity():
-    """Определяет редкость на основе шансов"""
     rand = random.uniform(0, 100)
     cumulative = 0
     for rarity in sorted(RARITIES.keys()):
@@ -226,8 +216,6 @@ def calculate_rarity():
         if rand <= cumulative:
             return rarity
     return 0
-
-
 
 
 def main_keyboard():
@@ -242,7 +230,7 @@ def main_keyboard():
 
 def shop_keyboard():
     buttons = []
-    for r in range(6):  
+    for r in range(6):
         buttons.append([InlineKeyboardButton(
             text=f"{RARITIES[r]['name']}",
             callback_data=f"shop_{r}"
@@ -254,19 +242,15 @@ def shop_keyboard():
 def phones_list_keyboard(user_id: int, rarity: int, page: int = 0):
     phones = get_user_phones(user_id, rarity)
     buttons = []
-    
     items_per_page = 5
     start = page * items_per_page
     end = start + items_per_page
-    
     for phone in phones[start:end]:
         phone_id, _, phone_name, r, price, _ = phone
         buttons.append([InlineKeyboardButton(
             text=f"{phone_name} ({price:,})",
             callback_data=f"phone_{phone_id}"
         )])
-    
-    # Навигация
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"myphones_{rarity}_{page-1}"))
@@ -274,7 +258,6 @@ def phones_list_keyboard(user_id: int, rarity: int, page: int = 0):
         nav_buttons.append(InlineKeyboardButton(text="➡️", callback_data=f"myphones_{rarity}_{page+1}"))
     if nav_buttons:
         buttons.append(nav_buttons)
-    
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_myphones")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -293,18 +276,14 @@ def rarity_select_keyboard():
 def shop_phones_keyboard(rarity: int, page: int = 0):
     phones = list(PHONES_DB.get(rarity, {}).items())
     buttons = []
-    
     items_per_page = 5
     start = page * items_per_page
     end = start + items_per_page
-    
     for phone_name, price in phones[start:end]:
         buttons.append([InlineKeyboardButton(
             text=f"{phone_name} - {price:,} ТОчек",
             callback_data=f"buy_{rarity}_{phone_name}"
         )])
-
-    
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️", callback_data=f"shop_{rarity}_{page-1}"))
@@ -312,7 +291,6 @@ def shop_phones_keyboard(rarity: int, page: int = 0):
         nav_buttons.append(InlineKeyboardButton(text="➡️", callback_data=f"shop_{rarity}_{page+1}"))
     if nav_buttons:
         buttons.append(nav_buttons)
-    
     buttons.append([InlineKeyboardButton(text="🔙 К редкостям", callback_data="back_shop")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -325,7 +303,7 @@ def buy_confirm_keyboard(rarity: int, phone_name: str):
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-
+# ==================== ХЕНДЛЕРЫ ====================
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -333,8 +311,7 @@ async def cmd_start(message: types.Message):
     username = message.from_user.username or ""
     first_name = message.from_user.first_name or ""
     create_user(user_id, username, first_name)
-    
-    # Устанавливаем ВСЕ команды бота в меню (22 команды)
+
     commands = [
         types.BotCommand(command="start", description="Приветственное сообщение"),
         types.BotCommand(command="tcard", description="Получить карточку"),
@@ -360,15 +337,14 @@ async def cmd_start(message: types.Message):
         types.BotCommand(command="ping", description="Проверка связи"),
     ]
     await bot.set_my_commands(commands)
-    
+
     bot_info = await bot.get_me()
-    
- 
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
         [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
     ])
-    
+
     await message.answer_photo(
         photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
         caption=f"👋 Добро пожаловать, @{username}!\n\n"
@@ -384,19 +360,14 @@ async def cmd_start(message: types.Message):
 @dp.callback_query(F.data == "help_menu")
 async def help_menu_callback(callback: types.CallbackQuery):
     """Меню помощи"""
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Вернуться назад", callback_data="back_start")]
     ])
-    
+
     await callback.message.delete()
     await callback.bot.send_photo(
-    chat_id=callback.message.chat.id,
-    photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg"
-    caption=f"ℹ️ ...",
-    parse_mode="HTML",
-    reply_markup=keyboard
-)
+        chat_id=callback.message.chat.id,
+        photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
         caption=f"ℹ️ <b>Наш бот представляет из себя инструмент для "
                 f"коллекционирования различных моделей телефонов: от старого "
                 f"хлама до новых ультра флагманов.</b>\n\n"
@@ -436,13 +407,38 @@ async def help_menu_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
+@dp.callback_query(F.data == "back_start")
+async def back_start_callback(callback: types.CallbackQuery):
+    """Возврат к приветствию"""
+    username = callback.from_user.username or ""
+    bot_info = await bot.get_me()
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
+        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
+    ])
+
+    await callback.message.delete()
+    await callback.bot.send_photo(
+        chat_id=callback.message.chat.id,
+        photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
+        caption=f"👋 Добро пожаловать, @{username}!\n\n"
+                f"🎴 Наш бот представляет из себя инструмент для "
+                f"коллекционирования различных моделей телефонов: от старого "
+                f"хлама до новых ультра флагманов.\n\n"
+                f"📱 Чтобы открыть вашу первую карточку напишите \"ТКарточка\".\n\n"
+                f"🎯 Используйте одну из кнопок ниже для взаимодействия с функциями:",
+        reply_markup=keyboard
+    )
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "commands_list")
 async def commands_list_callback(callback: types.CallbackQuery):
     """Список команд"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад", callback_data="help_menu")]
     ])
-    
     await callback.message.edit_caption(
         caption="<b>📋 Команды бота:</b>\n\n"
                 "<b>🎮 Основные:</b>\n"
@@ -477,7 +473,6 @@ async def about_bot_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад", callback_data="help_menu")]
     ])
-    
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM users')
@@ -485,7 +480,6 @@ async def about_bot_callback(callback: types.CallbackQuery):
     cursor.execute('SELECT COUNT(*) FROM user_phones')
     total_phones = cursor.fetchone()[0]
     conn.close()
-    
     await callback.message.edit_caption(
         caption=f"ℹ️ <b>Наш бот представляет из себя инструмент для "
                 f"коллекционирования различных моделей телефонов: от старого "
@@ -504,14 +498,15 @@ async def creators_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад", callback_data="help_menu")]
     ])
-    
     await callback.message.edit_caption(
         caption="👥 <b>Создатели бота:</b>\n\n"
-                "• Владелец, главный кодер и дизайнер:\n"
-                "@твой_username\n\n"
+                "• Владелец:\n"
+                "@hyper3os\n\n"
+                "• Дизайнер, кодер:\n"
+                "@usmonxadjaevv\n\n"
                 "🆘 <b>Нужна помощь, нашли ошибку или хотите предложить "
                 "идею? Напишите нашей оперативной поддержке:</b>\n"
-                "@твой_support_username",
+                "@hyper3os",
         reply_markup=keyboard
     )
     await callback.answer()
@@ -521,153 +516,110 @@ async def creators_callback(callback: types.CallbackQuery):
 
 @dp.message(Command("tacc"))
 async def tacc_command(message: types.Message):
-    """Алиас для ТАкк"""
     await show_account(message)
 
 
 @dp.message(Command("myphones"))
 async def myphones_command(message: types.Message):
-    """Алиас для Мои телефоны"""
     await my_phones(message)
 
 
 @dp.message(Command("shop"))
 async def shop_command(message: types.Message):
-    """Алиас для Магазин телефонов"""
     await shop(message)
 
 
 @dp.message(Command("upgradeshop"))
 async def upgradeshop_command(message: types.Message):
-    """Алиас для Магазин улучшений"""
     await upgrades_shop(message)
 
 
 @dp.message(Command("upgrade"))
 async def upgrade_command(message: types.Message):
-    """Алиас для Апгрейд"""
     await upgrade_menu(message)
 
 
 @dp.message(Command("daily"))
 async def daily_command(message: types.Message):
-    """Алиас для Ежедневная награда"""
     await daily_reward(message)
 
 
 @dp.message(Command("top"))
 async def top_command(message: types.Message):
-    """Алиас для Таблица лидеров"""
     await leaderboard(message)
 
 
-@dp.callback_query(F.data == "back_start")
-async def back_start_callback(callback: types.CallbackQuery):
-    """Возврат к приветствию"""
-    username = callback.from_user.username or ""
-    bot_info = await bot.get_me()
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Помощь 📚", callback_data="help_menu")],
-        [InlineKeyboardButton(text="➕ Добавить бота в чат", url=f"https://t.me/{bot_info.username}?startgroup=true")]
-    ])
-    
-    await callback.message.delete()
-    await callback.bot.send_photo(  # ← ИСПРАВЛЕНО!
-        chat_id=callback.message.chat.id,
-        photo="https://i.postimg.cc/HsVQVsZQ/photo_2026_03_01_03_52_06.jpg",
-        caption=f"👋 Добро пожаловать, @{username}!\n\n"
-                f"🎴 Наш бот представляет из себя инструмент для "
-                f"коллекционирования различных моделей телефонов: от старого "
-                f"хлама до новых ультра флагманов.\n\n"
-                f"📱 Чтобы открыть вашу первую карточку напишите \"ТКарточка\".\n\n"
-                f"🎯 Используйте одну из кнопок ниже для взаимодействия с функциями:",
-        reply_markup=keyboard
-    )
-    await callback.answer()
 
 
 @dp.message(Command("tcard"))
 @dp.message(F.text.in_(["ТКарточка", "тк", "TC", "tc"]))
-async def get_card_tcard(message: types.Message):
-    """Алиас для /tcard"""
-    await get_card(message)
-
-
-@dp.message(F.text.in_(["ТКарточка", "тк", "TC", "tc"]))
 async def get_card(message: types.Message):
     user_id = message.from_user.id
     user = get_user(user_id)
-    
+
     if not user:
         await message.answer("❌ Используйте /start сначала!")
         return
-    
+
     last_card = user[8]
     if last_card:
         last_time = datetime.fromisoformat(last_card)
-        next_time = last_time + timedelta(hours=3)  # 3 часа cooldown
+        next_time = last_time + timedelta(hours=3)
         now = datetime.now()
-        
         if now < next_time:
             diff = next_time - now
             hours = int(diff.total_seconds() // 3600)
             minutes = int((diff.total_seconds() % 3600) // 60)
             seconds = int(diff.total_seconds() % 60)
-            
             await message.answer(
                 f"⏰ Следующая карточка будет доступна через:\n"
                 f"{hours:02d}:{minutes:02d}:{seconds:02d}"
             )
             return
-    
-    # Выдаём случайный телефон
+
     rarity = calculate_rarity()
     phone_name, price = get_random_phone(rarity)
-    
+
     if not phone_name:
         await message.answer("❌ Ошибка! Попробуйте позже.")
         return
-    
-    add_phone(user_id, phone_name, rarity, price)
-    
-    # Обновляем время последней карточки
+
+    # ИСПРАВЛЕНО: add_phone теперь возвращает phone_id
+    phone_id = add_phone(user_id, phone_name, rarity, price)
+
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('UPDATE users SET last_card = ?, cards = cards + 1 WHERE user_id = ?',
                    (datetime.now().isoformat(), user_id))
     conn.commit()
     conn.close()
-    
+
     rarity_name = RARITIES[rarity]['name']
-    
+
     await message.answer(
         f"@{message.from_user.username} Вам выпал телефон!\n\n"
         f"{RARITIES[rarity]['color']} <b>{phone_name}</b>\n"
         f"{rarity_name} | Цена: <b>{price:,} ТОчек</b>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⚙️ Действия", callback_data=f"phone_actions_{phone_id}")]
+            [InlineKeyboardButton(text="⚙️ Действия", callback_data=f"phone_{phone_id}")]
         ])
     )
 
+
+# ==================== ПРОФИЛЬ ====================
 
 @dp.message(F.text.in_(["ТАкк", "та", "TA", "ta"]))
 async def show_account(message: types.Message):
     user_id = message.from_user.id
     user = get_user(user_id)
-    
     if not user:
         await message.answer("❌ Используйте /start сначала!")
         return
-    
     points = user[3]
     cards = user[4]
     total_phones = user[5]
-    
-    # Считаем общую стоимость телефонов
     phones = get_user_phones(user_id)
     total_value = sum(phone[4] for phone in phones)
-    
     await message.answer(
         f"<b>@{message.from_user.username}</b>\n"
         f"<b>Место в топе:</b> #???\n"
@@ -682,15 +634,15 @@ async def show_account(message: types.Message):
     )
 
 
+# ==================== МОИ ТЕЛЕФОНЫ ====================
+
 @dp.message(F.text.in_(["Мои телефоны", "мо", "mp", "МО", "MP"]))
 async def my_phones(message: types.Message):
     user_id = message.from_user.id
     phones = get_user_phones(user_id)
-    
     if not phones:
         await message.answer("📱 У вас пока нет телефонов! Используйте 🎴 ТКарточка")
         return
-    
     await message.answer(
         "📱 <b>Мои телефоны</b>\n\nВыберите редкость:",
         reply_markup=rarity_select_keyboard()
@@ -702,17 +654,17 @@ async def show_rarity_phones(callback: types.CallbackQuery):
     rarity = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
     phones = get_user_phones(user_id, rarity)
-    
     if not phones:
         await callback.answer(f"У вас нет телефонов редкости {RARITIES[rarity]['name']}", show_alert=True)
         return
-    
     await callback.message.edit_text(
         f"📱 <b>{RARITIES[rarity]['name']}</b>\n\nВаши телефоны:",
         reply_markup=phones_list_keyboard(user_id, rarity, 0)
     )
     await callback.answer()
 
+
+# ==================== МАГАЗИН ====================
 
 @dp.message(F.text.in_(["Магазин телефонов", "мт", "ps", "МТ", "PS"]))
 async def shop(message: types.Message):
@@ -724,19 +676,16 @@ async def shop(message: types.Message):
 
 @dp.message(F.text.in_(["Магазин улучшений", "му", "us", "МУ", "US"]))
 async def upgrades_shop(message: types.Message):
-    """Магазин прокачки игровых условностей"""
     user_id = message.from_user.id
     user = get_user(user_id)
     points = user[3] if user else 0
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏱ Уменьшить кулдаун карточки", callback_data="upgrade_card_cooldown")],
-        [InlineKeyboardButton(text="💰 Увеличить награду", callback_data="upgrade_daily_reward")],
-        [InlineKeyboardButton(text="⛏️ Улучшить майнинг ферму", callback_data="upgrade_farm")],
-        [InlineKeyboardButton(text="🎯 Увеличить шанс апгрейда", callback_data="upgrade_chance")],
+        [InlineKeyboardButton(text="⏱ Уменьшить кулдаун карточки", callback_data="upgshop_card_cooldown")],
+        [InlineKeyboardButton(text="💰 Увеличить награду", callback_data="upgshop_daily_reward")],
+        [InlineKeyboardButton(text="⛏️ Улучшить майнинг ферму", callback_data="upgshop_farm")],
+        [InlineKeyboardButton(text="🎯 Увеличить шанс апгрейда", callback_data="upgshop_chance")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
     ])
-    
     await message.answer(
         "🏪 <b>Магазин улучшений</b>\n\n"
         f"💰 Ваш баланс: {points:,} ТОчек\n\n"
@@ -745,28 +694,24 @@ async def upgrades_shop(message: types.Message):
     )
 
 
-@dp.callback_query(F.data.startswith("upgrade_"))
+# ИСПРАВЛЕНО: переименован с upgrade_ на upgshop_ чтобы не конфликтовать с апгрейдом телефонов
+@dp.callback_query(F.data.startswith("upgshop_"))
 async def process_upgrade_purchase(callback: types.CallbackQuery):
-    upgrade_type = callback.data.replace("upgrade_", "")
-    
+    upgrade_type = callback.data.replace("upgshop_", "")
     upgrades = {
         "card_cooldown": {"name": "Уменьшение кулдауна карточки", "price": 5000, "desc": "⏱ С 3 часов до 2.5 часов"},
         "daily_reward": {"name": "Увеличение ежедневной награды", "price": 3000, "desc": "💰 Со 100 до 150 ТОчек"},
         "farm": {"name": "Улучшение майнинг фермы", "price": 10000, "desc": "⛏️ Доход +50 ТОчек/сутки"},
         "chance": {"name": "Увеличение шанса апгрейда", "price": 15000, "desc": "🎯 +5% к шансу успеха"}
     }
-    
     if upgrade_type not in upgrades:
         await callback.answer("❌ Неизвестное улучшение!")
         return
-    
     upgrade = upgrades[upgrade_type]
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Купить", callback_data=f"confirm_upgrade_{upgrade_type}")],
+        [InlineKeyboardButton(text="✅ Купить", callback_data=f"confirm_upgshop_{upgrade_type}")],
         [InlineKeyboardButton(text="❌ Отменить", callback_data="back_upgrades")]
     ])
-    
     await callback.message.edit_text(
         f"🏪 <b>{upgrade['name']}</b>\n\n"
         f"{upgrade['desc']}\n\n"
@@ -782,15 +727,13 @@ async def back_upgrades(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user = get_user(user_id)
     points = user[3] if user else 0
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏱ Уменьшить кулдаун карточки", callback_data="upgrade_card_cooldown")],
-        [InlineKeyboardButton(text="💰 Увеличить награду", callback_data="upgrade_daily_reward")],
-        [InlineKeyboardButton(text="⛏️ Улучшить майнинг ферму", callback_data="upgrade_farm")],
-        [InlineKeyboardButton(text="🎯 Увеличить шанс апгрейда", callback_data="upgrade_chance")],
+        [InlineKeyboardButton(text="⏱ Уменьшить кулдаун карточки", callback_data="upgshop_card_cooldown")],
+        [InlineKeyboardButton(text="💰 Увеличить награду", callback_data="upgshop_daily_reward")],
+        [InlineKeyboardButton(text="⛏️ Улучшить майнинг ферму", callback_data="upgshop_farm")],
+        [InlineKeyboardButton(text="🎯 Увеличить шанс апгрейда", callback_data="upgshop_chance")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
     ])
-    
     await callback.message.edit_text(
         "🏪 <b>Магазин улучшений</b>\n\n"
         f"💰 Ваш баланс: {points:,} ТОчек\n\n"
@@ -805,7 +748,6 @@ async def show_shop_rarity(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     rarity = int(parts[1])
     page = int(parts[2]) if len(parts) > 2 else 0
-    
     await callback.message.edit_text(
         f"🏪 <b>{RARITIES[rarity]['name']}</b>\n\nДоступные телефоны:",
         reply_markup=shop_phones_keyboard(rarity, page)
@@ -821,7 +763,6 @@ async def buy_phone_confirm(callback: types.CallbackQuery):
     price = PHONES_DB[rarity][phone_name]
     user_id = callback.from_user.id
     points = get_points(user_id)
-    
     await callback.message.edit_text(
         f"📱 <b>{phone_name}</b>\n\n"
         f"{RARITIES[rarity]['name']}\n"
@@ -841,14 +782,11 @@ async def confirm_buy(callback: types.CallbackQuery):
     price = PHONES_DB[rarity][phone_name]
     user_id = callback.from_user.id
     points = get_points(user_id)
-    
     if points < price:
         await callback.answer(f"❌ Недостаточно ТОчек! Нужно: {price:,}", show_alert=True)
         return
-    
     update_points(user_id, -price)
     add_phone(user_id, phone_name, rarity, price)
-    
     await callback.message.edit_text(
         f"✅ <b>Покупка успешна!</b>\n\n"
         f"📱 {phone_name}\n"
@@ -857,6 +795,8 @@ async def confirm_buy(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+
+# ==================== АПГРЕЙД ====================
 
 @dp.message(F.text.in_(["Апгрейд", "ап", "up", "АП", "UP"]))
 async def upgrade_menu(message: types.Message):
@@ -875,49 +815,41 @@ async def upgrade_menu(message: types.Message):
     )
 
 
-@dp.callback_query(F.data.startswith("upgrade_"))
+# ИСПРАВЛЕНО: переименован с upgrade_ на do_upgrade_ чтобы не конфликтовать с магазином улучшений
+@dp.callback_query(F.data.startswith("do_upgrade_"))
 async def perform_upgrade(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    phone_id = int(parts[1])
-    
+    phone_id = int(parts[2])
     user_id = callback.from_user.id
-    
-    # Получаем телефон
+
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM user_phones WHERE id = ? AND user_id = ?', (phone_id, user_id))
     phone = cursor.fetchone()
-    
+
     if not phone:
         await callback.answer("❌ Телефон не найден!", show_alert=True)
         conn.close()
         return
-    
+
     phone_id, _, phone_name, rarity, price, _ = phone
-    
+
     if rarity >= 7:
         await callback.answer("❌ Это максимальная редкость!", show_alert=True)
         conn.close()
         return
-    
-    # Шанс апгрейда
+
     upgrade_chance = RARITIES[rarity]['upgrade_chance']
     success = random.uniform(0, 100) < upgrade_chance
-    
+
     if success:
-        # Успешный апгрейд
         new_rarity = rarity + 1
         new_phone, new_price = get_random_phone(new_rarity)
-        
-        # Удаляем старый телефон
         cursor.execute('DELETE FROM user_phones WHERE id = ?', (phone_id,))
-        
-        # Добавляем новый
         cursor.execute('''INSERT INTO user_phones (user_id, phone_name, rarity, price)
                           VALUES (?, ?, ?, ?)''', (user_id, new_phone, new_rarity, new_price))
         conn.commit()
         conn.close()
-        
         await callback.message.edit_text(
             f"🎉 <b>УСПЕХ!</b>\n\n"
             f"Ваш телефон:\n"
@@ -927,12 +859,10 @@ async def perform_upgrade(callback: types.CallbackQuery):
             f"✨ Прибыль: +{new_price - price:,} ТОчек"
         )
     else:
-        # Неудача - телефон потерян
         cursor.execute('DELETE FROM user_phones WHERE id = ?', (phone_id,))
         cursor.execute('UPDATE users SET total_phones = total_phones - 1 WHERE user_id = ?', (user_id,))
         conn.commit()
         conn.close()
-        
         await callback.message.edit_text(
             f"😔 <b>НЕУДАЧА!</b>\n\n"
             f"Ваш телефон:\n"
@@ -940,7 +870,6 @@ async def perform_upgrade(callback: types.CallbackQuery):
             f"❌ Был утерян при улучшении...\n"
             f"💔 Потеря: -{price:,} ТОчек"
         )
-    
     await callback.answer()
 
 
@@ -948,27 +877,27 @@ async def perform_upgrade(callback: types.CallbackQuery):
 async def show_phone_actions(callback: types.CallbackQuery):
     phone_id = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
-    
+
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM user_phones WHERE id = ? AND user_id = ?', (phone_id, user_id))
     phone = cursor.fetchone()
     conn.close()
-    
+
     if not phone:
         await callback.answer("❌ Телефон не найден!", show_alert=True)
         return
-    
+
     _, _, phone_name, rarity, price, obtained_at = phone
-    
     sell_price = int(price * 0.75)
-    
+
     buttons = [
-        [InlineKeyboardButton(text="⬆️ Улучшить", callback_data=f"upgrade_{phone_id}")],
+        # ИСПРАВЛЕНО: используем do_upgrade_ вместо upgrade_
+        [InlineKeyboardButton(text="⬆️ Улучшить", callback_data=f"do_upgrade_{phone_id}")],
         [InlineKeyboardButton(text="💰 Продать", callback_data=f"sell_{phone_id}")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data=f"myrarity_{rarity}")]
     ]
-    
+
     await callback.message.edit_text(
         f"📱 <b>{phone_name}</b>\n\n"
         f"{RARITIES[rarity]['name']}\n"
@@ -985,28 +914,26 @@ async def show_phone_actions(callback: types.CallbackQuery):
 async def sell_phone(callback: types.CallbackQuery):
     phone_id = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
-    
+
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM user_phones WHERE id = ? AND user_id = ?', (phone_id, user_id))
     phone = cursor.fetchone()
-    
+
     if not phone:
         await callback.answer("❌ Телефон не найден!", show_alert=True)
         conn.close()
         return
-    
+
     _, _, phone_name, rarity, price, _ = phone
-    
     sell_price = int(price * 0.75)
-    
-    # Удаляем телефон и начисляем деньги
+
     cursor.execute('DELETE FROM user_phones WHERE id = ?', (phone_id,))
     cursor.execute('UPDATE users SET points = points + ?, total_phones = total_phones - 1 WHERE user_id = ?',
                    (sell_price, user_id))
     conn.commit()
     conn.close()
-    
+
     await callback.message.edit_text(
         f"💰 <b>Продано!</b>\n\n"
         f"📱 {phone_name}\n"
@@ -1017,42 +944,37 @@ async def sell_phone(callback: types.CallbackQuery):
     await callback.answer()
 
 
+# ==================== ПРОЧИЕ КОМАНДЫ ====================
+
 @dp.message(F.text.in_(["Ежедневная награда", "ен", "er", "ЕН", "ER"]))
 async def daily_reward(message: types.Message):
     user_id = message.from_user.id
     user = get_user(user_id)
-    
     if not user:
         await message.answer("❌ Используйте /start сначала!")
         return
-    
     last_daily = user[9]
     if last_daily:
         last_time = datetime.fromisoformat(last_daily)
         next_time = last_time + timedelta(hours=24)
         now = datetime.now()
-        
         if now < next_time:
             diff = next_time - now
             hours = int(diff.total_seconds() // 3600)
             minutes = int((diff.total_seconds() % 3600) // 60)
-            
             await message.answer(
                 f"⏰ Следующая награда будет доступна через:\n"
                 f"{hours:02d}:{minutes:02d}:00"
             )
             return
-    
     reward = 100
     update_points(user_id, reward)
-    
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('UPDATE users SET last_daily = ? WHERE user_id = ?',
                    (datetime.now().isoformat(), user_id))
     conn.commit()
     conn.close()
-    
     await message.answer(
         f"🎁 <b>Ежедневная награда!</b>\n\n"
         f"Вы получили: <b>{reward} ТОчек</b>\n"
@@ -1066,32 +988,25 @@ async def leaderboard(message: types.Message):
     cursor = conn.cursor()
     cursor.execute('''
         SELECT user_id, first_name, username, points, total_phones
-        FROM users
-        ORDER BY points DESC
-        LIMIT 10
+        FROM users ORDER BY points DESC LIMIT 10
     ''')
     leaders = cursor.fetchall()
     conn.close()
-    
     if not leaders:
         await message.answer("🏆 Таблица лидеров пуста!")
         return
-    
     text = "🏆 <b>ТОП-10 ИГРОКОВ</b>\n\n"
     medals = ["🥇", "🥈", "🥉"] + ["4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
-    
     for i, leader in enumerate(leaders):
         user_id, first_name, username, points, phones = leader
         medal = medals[i] if i < len(medals) else f"{i+1}."
         text += f"{medal} <b>{first_name}</b> @{username}\n"
         text += f"    💰 {points:,} ТОчек | 📱 {phones} телефонов\n\n"
-    
     await message.answer(text)
 
 
 @dp.message(F.text.in_(["/sellall", "са", "sa", "СА", "SA"]))
 async def sellall_menu(message: types.Message):
-    """Продажа всех телефонов одной редкости"""
     await message.answer(
         "💰 <b>Продать все телефоны</b>\n\n"
         "Выберите редкость телефонов для продажи:\n"
@@ -1102,9 +1017,7 @@ async def sellall_menu(message: types.Message):
 
 @dp.message(F.text.in_(["/pay", "п", "p", "П", "P"]))
 async def pay_command(message: types.Message):
-    """Перевод ТОчек другому игроку"""
     args = message.text.split()
-    
     if len(args) < 3:
         await message.answer(
             "💸 <b>Перевод ТОчек</b>\n\n"
@@ -1114,52 +1027,39 @@ async def pay_command(message: types.Message):
             "<code>/pay @friend 1000</code>"
         )
         return
-    
     target_username = args[1].replace('@', '')
     try:
         amount = int(args[2])
     except:
         await message.answer("❌ Неверная сумма!")
         return
-    
     if amount < 1:
         await message.answer("❌ Минимум 1 ТОчек!")
         return
-    
     user_id = message.from_user.id
     points = get_points(user_id)
-    
     if points < amount:
         await message.answer(f"❌ Недостаточно ТОчек! У вас: {points:,}")
         return
-    
-    # Найти получателя
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT user_id FROM users WHERE username = ?', (target_username,))
     target = cursor.fetchone()
     conn.close()
-    
     if not target:
         await message.answer(f"❌ Пользователь @{target_username} не найден!")
         return
-    
     target_id = target[0]
-    
     if target_id == user_id:
         await message.answer("❌ Нельзя перевести самому себе!")
         return
-    
-    # Переводим
     update_points(user_id, -amount)
     update_points(target_id, amount)
-    
     await message.answer(
         f"✅ <b>Перевод выполнен!</b>\n\n"
         f"💸 Отправлено @{target_username}: {amount:,} ТОчек\n"
         f"💰 Ваш баланс: {get_points(user_id):,} ТОчек"
     )
-    
     try:
         await bot.send_message(
             target_id,
@@ -1174,9 +1074,7 @@ async def pay_command(message: types.Message):
 
 @dp.message(F.text.in_(["/paycoin", "пк", "pc", "ПК", "PC"]))
 async def paycoin_command(message: types.Message):
-    """Перевод T-Coins другому игроку"""
     args = message.text.split()
-    
     if len(args) < 3:
         await message.answer(
             "💎 <b>Перевод T-Coins</b>\n\n"
@@ -1187,19 +1085,6 @@ async def paycoin_command(message: types.Message):
             "ℹ️ T-Coins - это донатная валюта бота"
         )
         return
-    
-    target_username = args[1].replace('@', '')
-    try:
-        amount = int(args[2])
-    except:
-        await message.answer("❌ Неверная сумма!")
-        return
-    
-    if amount < 1:
-        await message.answer("❌ Минимум 1 T-Coin!")
-        return
-    
-    # TODO: Добавить систему T-Coins в базу данных
     await message.answer(
         "⏳ <b>T-Coins система в разработке!</b>\n\n"
         "Скоро вы сможете:\n"
@@ -1212,9 +1097,7 @@ async def paycoin_command(message: types.Message):
 
 @dp.message(F.text.in_(["/trade", "тр", "tr", "ТР", "TR"]))
 async def trade_command(message: types.Message):
-    """Обмен телефонами"""
     args = message.text.split()
-    
     if len(args) < 2:
         await message.answer(
             "🤝 <b>Обмен телефонами</b>\n\n"
@@ -1224,20 +1107,15 @@ async def trade_command(message: types.Message):
             "<code>/trade @friend</code>"
         )
         return
-    
     target_username = args[1].replace('@', '')
-    
-    # Найти пользователя
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
     cursor.execute('SELECT user_id FROM users WHERE username = ?', (target_username,))
     target = cursor.fetchone()
     conn.close()
-    
     if not target:
         await message.answer(f"❌ Пользователь @{target_username} не найден!")
         return
-    
     await message.answer(
         f"🤝 <b>Обмен с @{target_username}</b>\n\n"
         f"⏳ Функция в разработке...\n"
@@ -1247,16 +1125,12 @@ async def trade_command(message: types.Message):
 
 @dp.message(F.text.in_(["/tfarm", "тф", "tf", "ТФ", "TF", "ТМайнинг", "тмайнинг"]))
 async def farm_command(message: types.Message):
-    """Майнинг ферма"""
     user_id = message.from_user.id
     user = get_user(user_id)
-    
     if not user:
         await message.answer("❌ Используйте /start сначала!")
         return
-    
     farm_income = user[7]
-    
     await message.answer(
         f"⛏️ <b>Ваша майнинг ферма</b>\n\n"
         f"💰 Доход в сутки: {farm_income:,} ТОчек\n"
@@ -1267,7 +1141,6 @@ async def farm_command(message: types.Message):
 
 @dp.message(F.text.in_(["/event", "ев", "ev", "ЕВ", "EV"]))
 async def event_command(message: types.Message):
-    """Текущий розыгрыш"""
     await message.answer(
         "🎉 <b>РОЗЫГРЫШ</b>\n\n"
         "⏳ Сейчас нет активных розыгрышей\n\n"
@@ -1277,41 +1150,30 @@ async def event_command(message: types.Message):
 
 @dp.message(F.text.in_(["/avito", "ав", "av", "АВ", "AV", "авито"]))
 async def avito_command(message: types.Message):
-    """Вторичный рынок"""
     args = message.text.split()
-    
-    # Если указан username
     if len(args) > 1 and args[1].startswith('@'):
         username = args[1].replace('@', '')
-        
-        # Найти пользователя
         conn = sqlite3.connect('phones_bot.db')
         cursor = conn.cursor()
         cursor.execute('SELECT user_id, first_name FROM users WHERE username = ?', (username,))
         target = cursor.fetchone()
         conn.close()
-        
         if not target:
             await message.answer(f"❌ Пользователь @{username} не найден!")
             return
-        
         target_id, first_name = target
-        
         await message.answer(
             f"🏪 <b>Объявления @{username}</b>\n\n"
             f"⏳ Функция в разработке...\n\n"
             f"Здесь будут объявления игрока {first_name}"
         )
         return
-    
-    # Общий вторичный рынок
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📱 Все объявления", callback_data="avito_all")],
         [InlineKeyboardButton(text="➕ Разместить объявление", callback_data="avito_create")],
         [InlineKeyboardButton(text="📋 Мои объявления", callback_data="avito_my")],
         [InlineKeyboardButton(text="🔍 Поиск по игроку", callback_data="avito_search")]
     ])
-    
     await message.answer(
         "🏪 <b>Вторичный рынок (Авито)</b>\n\n"
         "⏳ Функция в разработке...\n\n"
@@ -1328,9 +1190,6 @@ async def avito_command(message: types.Message):
 
 @dp.message(F.text.in_(["/achievements", "достижения", "Достижения"]))
 async def achievements_command(message: types.Message):
-    """Достижения"""
-    user_id = message.from_user.id
-    
     await message.answer(
         "🏆 <b>ДОСТИЖЕНИЯ</b>\n\n"
         "⏳ Функция в разработке...\n\n"
@@ -1344,7 +1203,6 @@ async def achievements_command(message: types.Message):
 
 @dp.message(F.text.in_(["/donate", "донат", "Донат"]))
 async def donate_command(message: types.Message):
-    """Донат - покупка статусов"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⭐ VIP статус - 100₽", callback_data="donate_vip")],
         [InlineKeyboardButton(text="💎 Premium статус - 300₽", callback_data="donate_premium")],
@@ -1352,7 +1210,6 @@ async def donate_command(message: types.Message):
         [InlineKeyboardButton(text="💰 Пакет ТОчек - от 50₽", callback_data="donate_points")],
         [InlineKeyboardButton(text="🎴 Эксклюзивный телефон - 200₽", callback_data="donate_phone")]
     ])
-    
     await message.answer(
         "💎 <b>КАТАЛОГ ДОНАТА</b>\n\n"
         "<b>⭐ VIP статус (100₽):</b>\n"
@@ -1377,14 +1234,12 @@ async def donate_command(message: types.Message):
 
 @dp.message(F.text.in_(["/roulette", "рулетка", "Рулетка"]))
 async def roulette_command(message: types.Message):
-    """Донатная рулетка"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎰 Крутить (10 ТОчек)", callback_data="spin_roulette_10")],
         [InlineKeyboardButton(text="🎰 Крутить (100 ТОчек)", callback_data="spin_roulette_100")],
         [InlineKeyboardButton(text="🎰 Крутить (1000 ТОчек)", callback_data="spin_roulette_1000")],
         [InlineKeyboardButton(text="💎 Крутить за T-Coins", callback_data="spin_roulette_coins")]
     ])
-    
     await message.answer(
         "🎰 <b>ДОНАТНАЯ РУЛЕТКА</b>\n\n"
         "Выиграйте:\n"
@@ -1399,9 +1254,6 @@ async def roulette_command(message: types.Message):
 
 @dp.message(F.text.in_(["/tconfig", "тконфиг", "ТКонфиг"]))
 async def tconfig_command(message: types.Message):
-    """Конфигурация параметров"""
-    user_id = message.from_user.id
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔔 Уведомления", callback_data="config_notifications")],
         [InlineKeyboardButton(text="🎨 Тема оформления", callback_data="config_theme")],
@@ -1409,7 +1261,6 @@ async def tconfig_command(message: types.Message):
         [InlineKeyboardButton(text="🔒 Приватность", callback_data="config_privacy")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")]
     ])
-    
     await message.answer(
         "⚙️ <b>КОНФИГУРАЦИЯ</b>\n\n"
         "Настройте бота под себя:",
@@ -1419,21 +1270,15 @@ async def tconfig_command(message: types.Message):
 
 @dp.message(F.text.in_(["/tinfo", "тинфо", "ТИнфо"]))
 async def tinfo_command(message: types.Message):
-    """Техническая информация"""
     conn = sqlite3.connect('phones_bot.db')
     cursor = conn.cursor()
-    
     cursor.execute('SELECT COUNT(*) FROM users')
     total_users = cursor.fetchone()[0]
-    
     cursor.execute('SELECT COUNT(*) FROM user_phones')
     total_phones = cursor.fetchone()[0]
-    
     cursor.execute('SELECT SUM(points) FROM users')
     total_points = cursor.fetchone()[0] or 0
-    
     conn.close()
-    
     await message.answer(
         f"ℹ️ <b>Техническая информация</b>\n\n"
         f"👥 Пользователей: {total_users:,}\n"
@@ -1446,18 +1291,15 @@ async def tinfo_command(message: types.Message):
 
 @dp.message(F.text.in_(["/ping", "пинг", "Пинг"]))
 async def ping_command(message: types.Message):
-    """Пинг бота"""
     start = datetime.now()
     msg = await message.answer("🏓 Понг!")
     end = datetime.now()
     diff = (end - start).total_seconds() * 1000
-    
     await msg.edit_text(f"🏓 Понг!\n⏱ {diff:.0f}ms")
 
 
 @dp.message(F.text.in_(["Помощь", "помощь", "/help", "км", "h", "КМ", "H"]))
 async def help_command(message: types.Message):
-    """Помощь по командам"""
     await message.answer(
         "<b>📖 СПИСОК КОМАНД</b>\n\n"
         "<b>🎮 Игровые:</b>\n"
@@ -1508,7 +1350,7 @@ async def back_myphones(callback: types.CallbackQuery):
     await callback.answer()
 
 
-# ==================== ЗАПУСК ====================
+
 
 async def main():
     init_db()
@@ -1520,23 +1362,22 @@ if __name__ == '__main__':
     import sys
     import subprocess
     import time
-    
+
     if len(sys.argv) == 1:
         try:
             import watchfiles
             print("🔥 Hot Reload активирован!")
-            
+
             def run_bot():
                 return subprocess.Popen([sys.executable, __file__, '--running'])
-            
+
             process = run_bot()
             last_mtime = os.path.getmtime(__file__)
-            
+
             try:
                 while True:
                     time.sleep(1)
                     current_mtime = os.path.getmtime(__file__)
-                    
                     if current_mtime != last_mtime:
                         print("🔄 Изменения обнаружены! Перезапуск...")
                         process.terminate()
